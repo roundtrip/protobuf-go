@@ -188,6 +188,10 @@ func (d decoder) unmarshalMessage(m protoreflect.Message, skipTypeURL bool) erro
 		} else {
 			// The name can either be the JSON name or the proto field name.
 			fd = fieldDescs.ByJSONName(name)
+			// If the proto was encoded using the UseRepeatedListSuffix option, try to strip it.
+			if fd == nil && strings.HasSuffix(name, "List") {
+				fd = fieldDescs.ByJSONName(name[:len(name)-4])
+			}
 			if fd == nil {
 				fd = fieldDescs.ByTextName(name)
 			}

@@ -102,6 +102,13 @@ type MarshalOptions struct {
 	// a strict superset of the latter.
 	EmitDefaultValues bool
 
+	// Encodes int64, unit64, fixed64, sint64 and sfixed64 as numbers instead of strings.
+	UseInt64Numbers bool
+
+	// Appends a "List" suffix to the names of repeated fields. This is unsupported with
+	// UseProtoNames.
+	UseRepeatedListSuffix bool
+
 	// Resolver is used for looking up types when expanding google.protobuf.Any
 	// messages. If nil, this defaults to using protoregistry.GlobalTypes.
 	Resolver interface {
@@ -142,6 +149,9 @@ func (o MarshalOptions) MarshalAppend(b []byte, m proto.Message) ([]byte, error)
 // For profiling purposes, avoid changing the name of this function or
 // introducing other code paths for marshal that do not go through this.
 func (o MarshalOptions) marshal(b []byte, m proto.Message) ([]byte, error) {
+	if o.UseRepeatedListSuffix && o.UseProtoNames {
+		return nil, errors.New("UseRepeatedListSuffix unsupported with UseProtoNames")
+	}
 	if o.Multiline && o.Indent == "" {
 		o.Indent = defaultIndent
 	}
@@ -262,6 +272,8 @@ func (e encoder) marshalMessage(m protoreflect.Message, typeURL string) error {
 		name := fd.JSONName()
 		if e.opts.UseProtoNames {
 			name = fd.TextName()
+		} else if e.opts.UseRepeatedListSuffix && fd.Cardinality() == protoreflect.Repeated {
+			name += "List"
 		}
 
 		if err = e.WriteName(name); err != nil {
@@ -310,10 +322,21 @@ func (e encoder) marshalSingular(val protoreflect.Value, fd protoreflect.FieldDe
 	case protoreflect.Uint32Kind, protoreflect.Fixed32Kind:
 		e.WriteUint(val.Uint())
 
-	case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Uint64Kind,
-		protoreflect.Sfixed64Kind, protoreflect.Fixed64Kind:
-		// 64-bit integers are written out as JSON string.
-		e.WriteString(val.String())
+	case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Sfixed64Kind:
+		if e.opts.UseInt64Numbers {
+			e.WriteInt(val.Int())
+		} else {
+			// 64-bit integers are written out as JSON string.
+			e.WriteString(val.String())
+		}
+
+	case protoreflect.Uint64Kind, protoreflect.Fixed64Kind:
+		if e.opts.UseInt64Numbers {
+			e.WriteUint(val.Uint())
+		} else {
+			// 64-bit integers are written out as JSON string.
+			e.WriteString(val.String())
+		}
 
 	case protoreflect.FloatKind:
 		// Encoder.WriteFloat handles the special numbers NaN and infinites.

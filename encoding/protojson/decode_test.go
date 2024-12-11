@@ -882,6 +882,19 @@ func TestUnmarshal(t *testing.T) {
 			RptBool:   []bool{false, true},
 		},
 	}, {
+		desc:         "repeated scalars with List suffix",
+		inputMessage: &pb2.Repeats{},
+		inputText: `{
+  "rptStringList": ["hello", "world"],
+  "rptInt32List" : [-1, 0, 1],
+  "rptBoolList"  : [false, true]
+}`,
+		wantMessage: &pb2.Repeats{
+			RptString: []string{"hello", "world"},
+			RptInt32:  []int32{-1, 0, 1},
+			RptBool:   []bool{false, true},
+		},
+	}, {
 		desc:         "repeated enums",
 		inputMessage: &pb2.Enums{},
 		inputText: `{

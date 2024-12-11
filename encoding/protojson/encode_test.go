@@ -516,6 +516,77 @@ func TestMarshal(t *testing.T) {
   ]
 }`,
 	}, {
+		desc: "repeated fields with UseRepeatedListSuffix",
+		mo:   protojson.MarshalOptions{UseRepeatedListSuffix: true},
+		input: &pb2.Repeats{
+			RptBool:   []bool{true, false, true, true},
+			RptInt32:  []int32{1, 6, 0, 0},
+			RptInt64:  []int64{-64, 47},
+			RptUint32: []uint32{0xff, 0xffff},
+			RptUint64: []uint64{0xdeadbeef},
+			RptFloat:  []float32{float32(math.NaN()), float32(math.Inf(1)), float32(math.Inf(-1)), 1.034},
+			RptDouble: []float64{math.NaN(), math.Inf(1), math.Inf(-1), 1.23e-308},
+			RptString: []string{"hello", "世界"},
+			RptBytes: [][]byte{
+				[]byte("hello"),
+				[]byte("\xe4\xb8\x96\xe7\x95\x8c"),
+			},
+		},
+		want: `{
+  "rptBoolList": [
+    true,
+    false,
+    true,
+    true
+  ],
+  "rptInt32List": [
+    1,
+    6,
+    0,
+    0
+  ],
+  "rptInt64List": [
+    "-64",
+    "47"
+  ],
+  "rptUint32List": [
+    255,
+    65535
+  ],
+  "rptUint64List": [
+    "3735928559"
+  ],
+  "rptFloatList": [
+    "NaN",
+    "Infinity",
+    "-Infinity",
+    1.034
+  ],
+  "rptDoubleList": [
+    "NaN",
+    "Infinity",
+    "-Infinity",
+    1.23e-308
+  ],
+  "rptStringList": [
+    "hello",
+    "世界"
+  ],
+  "rptBytesList": [
+    "aGVsbG8=",
+    "5LiW55WM"
+  ]
+}`,
+	}, {
+		desc: "non-repeated fields with UseRepeatedListSuffix",
+		mo:   protojson.MarshalOptions{UseRepeatedListSuffix: true},
+		input: &pb2.Scalars{
+			OptString: proto.String("Hello, world!"),
+		},
+		want: `{
+  "optString": "Hello, world!"
+}`,
+	}, {
 		desc: "repeated enums",
 		input: &pb2.Enums{
 			RptEnum:       []pb2.Enum{pb2.Enum_ONE, 2, pb2.Enum_TEN, 42},
@@ -2498,6 +2569,28 @@ func TestMarshal(t *testing.T) {
       ]
     }
   ]
+}`,
+	}, {
+		desc:    "UseProtoNames with UseRepeatedListSuffix unsupported",
+		mo:      protojson.MarshalOptions{UseProtoNames: true, UseRepeatedListSuffix: true},
+		input:   &pb2.Nests{},
+		wantErr: true,
+	}, {
+		desc: "UseInt64Numbers",
+		mo:   protojson.MarshalOptions{UseInt64Numbers: true},
+		input: &pb2.Scalars{
+			OptInt64:    proto.Int64(42),
+			OptUint64:   proto.Uint64(42),
+			OptSint64:   proto.Int64(42),
+			OptSfixed64: proto.Int64(42),
+			OptFixed64:  proto.Uint64(42),
+		},
+		want: `{
+  "optInt64": 42,
+  "optUint64": 42,
+  "optSint64": 42,
+  "optFixed64": 42,
+  "optSfixed64": 42
 }`,
 	}}
 
