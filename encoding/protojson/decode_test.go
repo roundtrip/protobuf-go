@@ -1069,6 +1069,31 @@ func TestUnmarshal(t *testing.T) {
 			},
 		},
 	}, {
+		desc:         "strip Map name suffix",
+		inputMessage: &pb3.Maps{},
+		inputText: `{
+  "int32ToStrMap": {
+    "-101": "-101",
+	"0"   : "zero",
+	"255" : "0xff"
+  },
+  "boolToUint32": {
+    "false": 101,
+	"true" : "42"
+  }
+}`,
+		wantMessage: &pb3.Maps{
+			Int32ToStr: map[int32]string{
+				-101: "-101",
+				0xff: "0xff",
+				0:    "zero",
+			},
+			BoolToUint32: map[bool]uint32{
+				true:  42,
+				false: 101,
+			},
+		},
+	}, {
 		desc:         "map contains duplicate keys",
 		inputMessage: &pb3.Maps{},
 		inputText: `{
@@ -1172,6 +1197,224 @@ func TestUnmarshal(t *testing.T) {
     "` + "abc\xff" + `": {}
   }
 }`,
+		wantErr: `invalid UTF-8`,
+	}, {
+		desc:         "UnmarshalMapsFromLists",
+		umo:          protojson.UnmarshalOptions{UnmarshalMapsFromLists: true},
+		inputMessage: &pb3.Maps{},
+		inputText: `{
+		"int32ToStr": [
+			[
+				-101,
+				"-101"
+			],
+		  [
+				"0",
+				"zero"
+			],
+		  ["255", "0xff"]
+		],
+		"boolToUint32": [
+			[false, 101],
+		  [
+				true,
+				"42"
+			]
+		],
+		  "uint64ToEnum": [
+    [1, "ONE"],
+	[2,    2],
+	  [
+	  "10",
+	    101
+		  ]
+    ],
+		"strToNested": [
+      [
+		    "nested_one",
+	      {"sString": "nested in a map"}
+			],
+      ["nested_two", {}]
+  	],
+		"strToOneofs": [
+    	[
+		    "nested",
+	      {
+				  "oneofNested": {
+	          "sString": "nested oneof in map field value"
+          }
+				}	
+	    ],
+	    [
+			  "string", 
+				{"oneofString": "hello"}
+			]
+  	]
+	}`,
+		wantMessage: &pb3.Maps{
+			Int32ToStr: map[int32]string{
+				-101: "-101",
+				0xff: "0xff",
+				0:    "zero",
+			},
+			BoolToUint32: map[bool]uint32{
+				true:  42,
+				false: 101,
+			},
+			Uint64ToEnum: map[uint64]pb3.Enum{
+				1:  pb3.Enum_ONE,
+				2:  pb3.Enum_TWO,
+				10: 101,
+			},
+			StrToNested: map[string]*pb3.Nested{
+				"nested_one": {
+					SString: "nested in a map",
+				},
+				"nested_two": {},
+			},
+			StrToOneofs: map[string]*pb3.Oneofs{
+				"string": {
+					Union: &pb3.Oneofs_OneofString{
+						OneofString: "hello",
+					},
+				},
+				"nested": {
+					Union: &pb3.Oneofs_OneofNested{
+						OneofNested: &pb3.Nested{
+							SString: "nested oneof in map field value",
+						},
+					},
+				},
+			},
+		},
+	}, {
+		desc:         "UnmarshalMapsFromLists: empty map",
+		umo:          protojson.UnmarshalOptions{UnmarshalMapsFromLists: true},
+		inputMessage: &pb3.Maps{},
+		inputText: `{
+		"int32ToStr": []
+	}`,
+		wantMessage: &pb3.Maps{
+			Int32ToStr: map[int32]string{},
+		},
+	}, {
+		desc:         "UnmarshalMapsFromLists: map contains duplicate keys",
+		umo:          protojson.UnmarshalOptions{UnmarshalMapsFromLists: true},
+		inputMessage: &pb3.Maps{},
+		inputText: `{
+		"int32ToStr": [
+			["0", "cero"],
+			["0", "zero"]
+		]
+	}
+	`,
+		wantErr: `(line 4:4): duplicate map key 0`,
+	}, {
+		desc:         "UnmarshalMapsFromLists: map key empty string",
+		umo:          protojson.UnmarshalOptions{UnmarshalMapsFromLists: true},
+		inputMessage: &pb3.Maps{},
+		inputText: `{
+		"strToNested": [
+			["", {}]
+		]
+	}`,
+		wantMessage: &pb3.Maps{
+			StrToNested: map[string]*pb3.Nested{
+				"": {},
+			},
+		},
+	}, {
+		desc:         "UnmarshalMapsFromLists: map contains invalid key 1",
+		umo:          protojson.UnmarshalOptions{UnmarshalMapsFromLists: true},
+		inputMessage: &pb3.Maps{},
+		inputText: `{
+		"int32ToStr": [
+			["invalid", "cero"]
+		]
+	}`,
+		wantErr: `invalid value for int32 type: "invalid"`,
+	}, {
+		desc:         "UnmarshalMapsFromLists: map contains invalid key 2",
+		umo:          protojson.UnmarshalOptions{UnmarshalMapsFromLists: true},
+		inputMessage: &pb3.Maps{},
+		inputText: `{
+		"int32ToStr": [
+			["1.02", "float"]
+		]
+	}`,
+		wantErr: `invalid value for int32 type: "1.02"`,
+	}, {
+		desc:         "UnmarshalMapsFromLists: map contains invalid key 3",
+		umo:          protojson.UnmarshalOptions{UnmarshalMapsFromLists: true},
+		inputMessage: &pb3.Maps{},
+		inputText: `{
+		"int32ToStr": [
+			["2147483648", "exceeds 32-bit integer max limit"]
+		]
+	}`,
+		wantErr: `invalid value for int32 type: "2147483648"`,
+	}, {
+		desc:         "map contains invalid key 4",
+		umo:          protojson.UnmarshalOptions{UnmarshalMapsFromLists: true},
+		inputMessage: &pb3.Maps{},
+		inputText: `{
+		"uint64ToEnum": [
+			["-1", 0]
+		]
+	}`,
+		wantErr: `invalid value for uint64 type: "-1"`,
+	}, {
+		desc:         "UnmarshalMapsFromLists: map contains invalid value",
+		umo:          protojson.UnmarshalOptions{UnmarshalMapsFromLists: true},
+		inputMessage: &pb3.Maps{},
+		inputText: `{
+		"int32ToStr": [
+			["101", true]
+		]
+	}`,
+		wantErr: `invalid value for string type: true`,
+	}, {
+		desc:         "UnmarshalMapsFromLists: map contains null for scalar value",
+		umo:          protojson.UnmarshalOptions{UnmarshalMapsFromLists: true},
+		inputMessage: &pb3.Maps{},
+		inputText: `{
+		"int32ToStr": [
+			["101", null]
+		]
+	}`,
+		wantErr: `invalid value for string type: null`,
+	}, {
+		desc:         "UnmarshalMapsFromLists: map contains null for message value",
+		umo:          protojson.UnmarshalOptions{UnmarshalMapsFromLists: true},
+		inputMessage: &pb3.Maps{},
+		inputText: `{
+		"strToNested": [
+			["hello", null]
+		]
+	}`,
+		wantErr: `unexpected token null`,
+	}, {
+		desc:         "UnmarshalMapsFromLists: map contains contains message value with invalid UTF8",
+		umo:          protojson.UnmarshalOptions{UnmarshalMapsFromLists: true},
+		inputMessage: &pb3.Maps{},
+		inputText: `{
+		"strToNested": [
+			[
+		    "hello",
+				{"sString": "` + "abc\xff" + `"}
+			]
+		]
+	}`,
+		wantErr: `invalid UTF-8`,
+	}, {
+		desc:         "UnmarshalMapsFromLists: map key contains invalid UTF8",
+		umo:          protojson.UnmarshalOptions{UnmarshalMapsFromLists: true},
+		inputMessage: &pb3.Maps{},
+		inputText: `{
+		"strToNested": [
+			["` + "abc\xff" + `", {}]
+		]
+	}`,
 		wantErr: `invalid UTF-8`,
 	}, {
 		desc:         "required fields not set",

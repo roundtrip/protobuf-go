@@ -41,6 +41,9 @@ type UnmarshalOptions struct {
 	// If DiscardUnknown is set, unknown fields and enum name values are ignored.
 	DiscardUnknown bool
 
+	// If true, parses maps as lists of lists instead of objects.
+	UnmarshalMapsFromLists bool
+
 	// Resolver is used for looking up types when unmarshaling
 	// google.protobuf.Any messages or extension fields.
 	// If nil, this defaults to using protoregistry.GlobalTypes.
@@ -188,9 +191,13 @@ func (d decoder) unmarshalMessage(m protoreflect.Message, skipTypeURL bool) erro
 		} else {
 			// The name can either be the JSON name or the proto field name.
 			fd = fieldDescs.ByJSONName(name)
-			// If the proto was encoded using the UseRepeatedListSuffix option, try to strip it.
+			// If the proto was encoded using the UseRepeatedListNameSuffix option, try to strip it.
 			if fd == nil && strings.HasSuffix(name, "List") {
 				fd = fieldDescs.ByJSONName(name[:len(name)-4])
+			}
+			// If the proto was encoded using the UseMapNameSuffix option, try to strip it.
+			if fd == nil && strings.HasSuffix(name, "Map") {
+				fd = fieldDescs.ByJSONName(name[:len(name)-3])
 			}
 			if fd == nil {
 				fd = fieldDescs.ByTextName(name)
@@ -235,8 +242,14 @@ func (d decoder) unmarshalMessage(m protoreflect.Message, skipTypeURL bool) erro
 			}
 		case fd.IsMap():
 			mmap := m.Mutable(fd).Map()
-			if err := d.unmarshalMap(mmap, fd); err != nil {
-				return err
+			if d.opts.UnmarshalMapsFromLists {
+				if err := d.unmarshalMapFromLists(mmap, fd); err != nil {
+					return err
+				}
+			} else {
+				if err := d.unmarshalMap(mmap, fd); err != nil {
+					return err
+				}
 			}
 		default:
 			// If field is a oneof, check if it has already been set.
@@ -570,6 +583,87 @@ func (d decoder) unmarshalList(list protoreflect.List, fd protoreflect.FieldDesc
 	}
 
 	return nil
+}
+
+func (d decoder) unmarshalMapFromLists(mmap protoreflect.Map, fd protoreflect.FieldDescriptor) error {
+	tok, err := d.Read()
+	if err != nil {
+		return err
+	}
+	if tok.Kind() != json.ArrayOpen {
+		return d.unexpectedTokenError(tok)
+	}
+
+	// Determine ahead whether map entry is a scalar type or a message type in
+	// order to call the appropriate unmarshalMapValue func inside the for loop
+	// below.
+	var unmarshalMapValue func() (protoreflect.Value, error)
+	switch fd.MapValue().Kind() {
+	case protoreflect.MessageKind, protoreflect.GroupKind:
+		unmarshalMapValue = func() (protoreflect.Value, error) {
+			val := mmap.NewValue()
+			if err := d.unmarshalMessage(val.Message(), false); err != nil {
+				return protoreflect.Value{}, err
+			}
+			return val, nil
+		}
+	default:
+		unmarshalMapValue = func() (protoreflect.Value, error) {
+			return d.unmarshalScalar(fd.MapValue())
+		}
+	}
+
+	for {
+		tok, err := d.Peek()
+		if err != nil {
+			return err
+		}
+
+		if tok.Kind() == json.ArrayClose {
+			d.Read()
+			return nil
+		}
+
+		tok, err = d.Read()
+		if err != nil {
+			return err
+		}
+		if tok.Kind() != json.ArrayOpen {
+			return d.unexpectedTokenError(tok)
+		}
+
+		// Map keys must be scalar values.
+		key, err := d.unmarshalScalar(fd.MapKey())
+		if err != nil {
+			return err
+		}
+		if !key.IsValid() {
+			continue
+		}
+
+		val, err := unmarshalMapValue()
+		if err != nil {
+			return err
+		}
+
+		// Check for duplicate field name.
+		pkey := key.MapKey()
+		if mmap.Has(pkey) {
+			return d.newError(tok.Pos(), "duplicate map key %v", pkey.String())
+		}
+
+		if val.IsValid() {
+			mmap.Set(pkey, val)
+		}
+
+		tok, err = d.Read()
+		if err != nil {
+			return err
+		}
+		if tok.Kind() != json.ArrayClose {
+			return d.unexpectedTokenError(tok)
+		}
+	}
 }
 
 func (d decoder) unmarshalMap(mmap protoreflect.Map, fd protoreflect.FieldDescriptor) error {

@@ -107,7 +107,14 @@ type MarshalOptions struct {
 
 	// Appends a "List" suffix to the names of repeated fields. This is unsupported with
 	// UseProtoNames.
-	UseRepeatedListSuffix bool
+	UseRepeatedListNameSuffix bool
+
+	// Encodes maps as lists of lists instead of objects.
+	UseListsForMaps bool
+
+	// Appends a "Map" suffix to the names of map fields. This is unsupported with
+	// UseProtoNames.
+	UseMapNameSuffix bool
 
 	// Resolver is used for looking up types when expanding google.protobuf.Any
 	// messages. If nil, this defaults to using protoregistry.GlobalTypes.
@@ -149,9 +156,13 @@ func (o MarshalOptions) MarshalAppend(b []byte, m proto.Message) ([]byte, error)
 // For profiling purposes, avoid changing the name of this function or
 // introducing other code paths for marshal that do not go through this.
 func (o MarshalOptions) marshal(b []byte, m proto.Message) ([]byte, error) {
-	if o.UseRepeatedListSuffix && o.UseProtoNames {
+	if o.UseRepeatedListNameSuffix && o.UseProtoNames {
 		return nil, errors.New("UseRepeatedListSuffix unsupported with UseProtoNames")
 	}
+	if o.UseMapNameSuffix && o.UseProtoNames {
+		return nil, errors.New("UseMapNameSuffix unsupported with UseProtoNames")
+	}
+
 	if o.Multiline && o.Indent == "" {
 		o.Indent = defaultIndent
 	}
@@ -272,8 +283,10 @@ func (e encoder) marshalMessage(m protoreflect.Message, typeURL string) error {
 		name := fd.JSONName()
 		if e.opts.UseProtoNames {
 			name = fd.TextName()
-		} else if e.opts.UseRepeatedListSuffix && fd.Cardinality() == protoreflect.Repeated {
+		} else if e.opts.UseRepeatedListNameSuffix && fd.IsList() {
 			name += "List"
+		} else if e.opts.UseMapNameSuffix && fd.IsMap() {
+			name += "Map"
 		}
 
 		if err = e.WriteName(name); err != nil {
@@ -388,6 +401,25 @@ func (e encoder) marshalList(list protoreflect.List, fd protoreflect.FieldDescri
 
 // marshalMap marshals given protoreflect.Map.
 func (e encoder) marshalMap(mmap protoreflect.Map, fd protoreflect.FieldDescriptor) error {
+	if e.opts.UseListsForMaps {
+		e.StartArray()
+		defer e.EndArray()
+		var err error
+		order.RangeEntries(mmap, order.GenericKeyOrder, func(k protoreflect.MapKey, v protoreflect.Value) bool {
+			e.StartArray()
+			defer e.EndArray()
+
+			if err = e.marshalSingular(k.Value(), fd.MapKey()); err != nil {
+				return false
+			}
+			if err = e.marshalSingular(v, fd.MapValue()); err != nil {
+				return false
+			}
+			return true
+		})
+		return err
+	}
+
 	e.StartObject()
 	defer e.EndObject()
 

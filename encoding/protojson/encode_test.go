@@ -516,8 +516,8 @@ func TestMarshal(t *testing.T) {
   ]
 }`,
 	}, {
-		desc: "repeated fields with UseRepeatedListSuffix",
-		mo:   protojson.MarshalOptions{UseRepeatedListSuffix: true},
+		desc: "repeated fields with UseRepeatedListNameSuffix",
+		mo:   protojson.MarshalOptions{UseRepeatedListNameSuffix: true},
 		input: &pb2.Repeats{
 			RptBool:   []bool{true, false, true, true},
 			RptInt32:  []int32{1, 6, 0, 0},
@@ -578,8 +578,8 @@ func TestMarshal(t *testing.T) {
   ]
 }`,
 	}, {
-		desc: "non-repeated fields with UseRepeatedListSuffix",
-		mo:   protojson.MarshalOptions{UseRepeatedListSuffix: true},
+		desc: "non-repeated fields with UseRepeatedListNameSuffix",
+		mo:   protojson.MarshalOptions{UseRepeatedListNameSuffix: true},
 		input: &pb2.Scalars{
 			OptString: proto.String("Hello, world!"),
 		},
@@ -783,6 +783,144 @@ func TestMarshal(t *testing.T) {
       "oneofString": "hello"
     }
   }
+}`,
+	}, {
+		desc: "UseListsForMaps",
+		mo:   protojson.MarshalOptions{UseListsForMaps: true},
+		input: &pb3.Maps{
+			Int32ToStr: map[int32]string{
+				-101: "-101",
+				0xff: "0xff",
+				0:    "zero",
+			},
+			BoolToUint32: map[bool]uint32{
+				true:  42,
+				false: 101,
+			},
+			Uint64ToEnum: map[uint64]pb3.Enum{
+				1:  pb3.Enum_ONE,
+				2:  pb3.Enum_TWO,
+				10: pb3.Enum_TEN,
+				47: 47,
+			},
+			StrToNested: map[string]*pb3.Nested{
+				"nested": &pb3.Nested{
+					SString: "nested in a map",
+				},
+			},
+			StrToOneofs: map[string]*pb3.Oneofs{
+				"string": &pb3.Oneofs{
+					Union: &pb3.Oneofs_OneofString{
+						OneofString: "hello",
+					},
+				},
+				"nested": &pb3.Oneofs{
+					Union: &pb3.Oneofs_OneofNested{
+						OneofNested: &pb3.Nested{
+							SString: "nested oneof in map field value",
+						},
+					},
+				},
+			},
+		},
+		want: `{
+  "int32ToStr": [
+    [
+      -101,
+      "-101"
+    ],
+    [
+      0,
+      "zero"
+    ],
+    [
+      255,
+      "0xff"
+    ]
+  ],
+  "boolToUint32": [
+    [
+      false,
+      101
+    ],
+    [
+      true,
+      42
+    ]
+  ],
+  "uint64ToEnum": [
+    [
+      "1",
+      "ONE"
+    ],
+    [
+      "2",
+      "TWO"
+    ],
+    [
+      "10",
+      "TEN"
+    ],
+    [
+      "47",
+      47
+    ]
+  ],
+  "strToNested": [
+    [
+      "nested",
+      {
+        "sString": "nested in a map"
+      }
+    ]
+  ],
+  "strToOneofs": [
+    [
+      "nested",
+      {
+        "oneofNested": {
+          "sString": "nested oneof in map field value"
+        }
+      }
+    ],
+    [
+      "string",
+      {
+        "oneofString": "hello"
+      }
+    ]
+  ]
+}`,
+	}, {
+		desc: "UseListsForMaps with UseInt64Numbers",
+		mo:   protojson.MarshalOptions{UseListsForMaps: true, UseInt64Numbers: true},
+		input: &pb3.Maps{
+			Uint64ToEnum: map[uint64]pb3.Enum{
+				1:  pb3.Enum_ONE,
+				2:  pb3.Enum_TWO,
+				10: pb3.Enum_TEN,
+				47: 47,
+			},
+		},
+		want: `{
+  "uint64ToEnum": [
+    [
+      1,
+      "ONE"
+    ],
+    [
+      2,
+      "TWO"
+    ],
+    [
+      10,
+      "TEN"
+    ],
+    [
+      47,
+      47
+    ]
+  ]
 }`,
 	}, {
 		desc: "map field contains nil value",
@@ -2175,6 +2313,17 @@ func TestMarshal(t *testing.T) {
   "strToOneofs": {}
 }`,
 	}, {
+		desc:  "EmitUnpopulated and UseListsForMaps: map fields",
+		mo:    protojson.MarshalOptions{EmitUnpopulated: true, UseListsForMaps: true},
+		input: &pb3.Maps{},
+		want: `{
+  "int32ToStr": [],
+  "boolToUint32": [],
+  "uint64ToEnum": [],
+  "strToNested": [],
+  "strToOneofs": []
+}`,
+	}, {
 		desc: "EmitUnpopulated: map containing empty message",
 		mo:   protojson.MarshalOptions{EmitUnpopulated: true},
 		input: &pb3.Maps{
@@ -2412,6 +2561,17 @@ func TestMarshal(t *testing.T) {
   "strToOneofs": {}
 }`,
 	}, {
+		desc:  "EmitDefaultValues and UseListsForMaps: map fields",
+		mo:    protojson.MarshalOptions{EmitDefaultValues: true, UseListsForMaps: true},
+		input: &pb3.Maps{},
+		want: `{
+  "int32ToStr": [],
+  "boolToUint32": [],
+  "uint64ToEnum": [],
+  "strToNested": [],
+  "strToOneofs": []
+}`,
+	}, {
 		desc: "EmitDefaultValues: map containing empty message",
 		mo:   protojson.MarshalOptions{EmitDefaultValues: true},
 		input: &pb3.Maps{
@@ -2571,8 +2731,8 @@ func TestMarshal(t *testing.T) {
   ]
 }`,
 	}, {
-		desc:    "UseProtoNames with UseRepeatedListSuffix unsupported",
-		mo:      protojson.MarshalOptions{UseProtoNames: true, UseRepeatedListSuffix: true},
+		desc:    "UseProtoNames with UseRepeatedListNameSuffix unsupported",
+		mo:      protojson.MarshalOptions{UseProtoNames: true, UseRepeatedListNameSuffix: true},
 		input:   &pb2.Nests{},
 		wantErr: true,
 	}, {
