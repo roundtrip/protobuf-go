@@ -895,6 +895,20 @@ func TestUnmarshal(t *testing.T) {
 			RptBool:   []bool{false, true},
 		},
 	}, {
+		desc:         "unexpected List suffix on scalar",
+		inputMessage: &pb2.Scalars{},
+		inputText: `{
+  "optStringList": "hello"
+}`,
+		wantErr: "(line 2:3): unexpected List name suffix on non-list field pb2.Scalars.opt_string",
+	}, {
+		desc:         "unexpected Map suffix on scalar",
+		inputMessage: &pb2.Scalars{},
+		inputText: `{
+		"optStringMap": "hello"
+	}`,
+		wantErr: "(line 2:3): unexpected Map name suffix on non-map field pb2.Scalars.opt_string",
+	}, {
 		desc:         "repeated enums",
 		inputMessage: &pb2.Enums{},
 		inputText: `{
