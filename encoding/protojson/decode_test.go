@@ -2792,6 +2792,123 @@ func TestUnmarshal(t *testing.T) {
 			},
 		},
 	}, {
+		desc:         "DisableWellKnownTypeDecoding: well known types as messages",
+		umo:          protojson.UnmarshalOptions{DisableWellKnownTypeDecoding: true},
+		inputMessage: &pb2.KnownTypes{},
+		inputText: `{
+  "optBool": {},
+  "optInt32": {
+    "value": 42
+  },
+  "optInt64": {
+    "value": "42"
+  },
+  "optUint32": {
+    "value": 42
+  },
+  "optUint64": {
+    "value": "42"
+  },
+  "optFloat": {
+    "value": 1.23
+  },
+  "optDouble": {
+    "value": 3.1415
+  },
+  "optString": {
+    "value": "hello"
+  },
+  "optBytes": {
+    "value": "aGVsbG8="
+  },
+  "optDuration": {
+    "seconds": "123"
+  },
+  "optTimestamp": {
+    "seconds": "1553036601"
+  },
+  "optStruct": {
+    "fields": {
+      "string": {
+        "stringValue": "hello"
+      }
+    }
+  },
+  "optList": {
+    "values": [
+      {
+        "nullValue": null
+      },
+      {
+        "stringValue": ""
+      },
+      {
+        "structValue": {}
+      },
+      {
+        "listValue": {}
+      }
+    ]
+  },
+  "optValue": {
+    "stringValue": "world"
+  },
+  "optEmpty": {},
+  "optAny": {
+    "typeUrl": "google.protobuf.Empty"
+  },
+  "optFieldmask": {
+    "paths": [
+      "foo_bar",
+      "bar_foo"
+    ]
+  }
+}`,
+		wantMessage: &pb2.KnownTypes{
+			OptBool:      &wrapperspb.BoolValue{Value: false},
+			OptInt32:     &wrapperspb.Int32Value{Value: 42},
+			OptInt64:     &wrapperspb.Int64Value{Value: 42},
+			OptUint32:    &wrapperspb.UInt32Value{Value: 42},
+			OptUint64:    &wrapperspb.UInt64Value{Value: 42},
+			OptFloat:     &wrapperspb.FloatValue{Value: 1.23},
+			OptDouble:    &wrapperspb.DoubleValue{Value: 3.1415},
+			OptString:    &wrapperspb.StringValue{Value: "hello"},
+			OptBytes:     &wrapperspb.BytesValue{Value: []byte("hello")},
+			OptDuration:  &durationpb.Duration{Seconds: 123},
+			OptTimestamp: &timestamppb.Timestamp{Seconds: 1553036601},
+			OptStruct: &structpb.Struct{
+				Fields: map[string]*structpb.Value{
+					"string": {Kind: &structpb.Value_StringValue{"hello"}},
+				},
+			},
+			OptList: &structpb.ListValue{
+				Values: []*structpb.Value{
+					{Kind: &structpb.Value_NullValue{}},
+					{Kind: &structpb.Value_StringValue{}},
+					{
+						Kind: &structpb.Value_StructValue{
+							&structpb.Struct{Fields: map[string]*structpb.Value{}},
+						},
+					},
+					{
+						Kind: &structpb.Value_ListValue{
+							&structpb.ListValue{Values: []*structpb.Value{}},
+						},
+					},
+				},
+			},
+			OptValue: &structpb.Value{
+				Kind: &structpb.Value_StringValue{"world"},
+			},
+			OptEmpty: &emptypb.Empty{},
+			OptAny: &anypb.Any{
+				TypeUrl: "google.protobuf.Empty",
+			},
+			OptFieldmask: &fieldmaskpb.FieldMask{
+				Paths: []string{"foo_bar", "bar_foo"},
+			},
+		},
+	}, {
 		desc:         "DiscardUnknown: regular messages",
 		umo:          protojson.UnmarshalOptions{DiscardUnknown: true},
 		inputMessage: &pb3.Nests{},

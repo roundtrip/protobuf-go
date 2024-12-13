@@ -44,6 +44,9 @@ type UnmarshalOptions struct {
 	// If true, parses maps as lists of lists instead of objects.
 	UnmarshalMapsFromLists bool
 
+	// Parses "well known types" (e.g. BoolValue, Duration, Any) as regular messages.
+	DisableWellKnownTypeDecoding bool
+
 	// Resolver is used for looking up types when unmarshaling
 	// google.protobuf.Any messages or extension fields.
 	// If nil, this defaults to using protoregistry.GlobalTypes.
@@ -129,8 +132,10 @@ func (d decoder) unmarshalMessage(m protoreflect.Message, skipTypeURL bool) erro
 	if d.opts.RecursionLimit < 0 {
 		return errors.New("exceeded max recursion depth")
 	}
-	if unmarshal := wellKnownTypeUnmarshaler(m.Descriptor().FullName()); unmarshal != nil {
-		return unmarshal(d, m)
+	if !d.opts.DisableWellKnownTypeDecoding {
+		if unmarshal := wellKnownTypeUnmarshaler(m.Descriptor().FullName()); unmarshal != nil {
+			return unmarshal(d, m)
+		}
 	}
 
 	tok, err := d.Read()

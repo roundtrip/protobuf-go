@@ -116,6 +116,10 @@ type MarshalOptions struct {
 	// UseProtoNames.
 	UseMapNameSuffix bool
 
+	// Disable custom encoding for "well known types" (e.g. Duration, Struct, wrapper types)
+	// and encodes them as regular messages.
+	DisableWellKnownTypeEncoding bool
+
 	// Resolver is used for looking up types when expanding google.protobuf.Any
 	// messages. If nil, this defaults to using protoregistry.GlobalTypes.
 	Resolver interface {
@@ -260,8 +264,10 @@ func (e encoder) marshalMessage(m protoreflect.Message, typeURL string) error {
 		return errors.New("no support for proto1 MessageSets")
 	}
 
-	if marshal := wellKnownTypeMarshaler(m.Descriptor().FullName()); marshal != nil {
-		return marshal(e, m)
+	if !e.opts.DisableWellKnownTypeEncoding {
+		if marshal := wellKnownTypeMarshaler(m.Descriptor().FullName()); marshal != nil {
+			return marshal(e, m)
+		}
 	}
 
 	e.StartObject()
