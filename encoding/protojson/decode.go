@@ -199,14 +199,14 @@ func (d decoder) unmarshalMessage(m protoreflect.Message, skipTypeURL bool) erro
 			// If the proto was encoded using the UseRepeatedListNameSuffix option, try to strip it.
 			if fd == nil && strings.HasSuffix(name, "List") {
 				fd = fieldDescs.ByJSONName(name[:len(name)-4])
-				if !fd.IsList() {
+				if fd != nil && !fd.IsList() {
 					return d.newError(tok.Pos(), "unexpected List name suffix on non-list field %v", fd.FullName())
 				}
 			}
 			// If the proto was encoded using the UseMapNameSuffix option, try to strip it.
 			if fd == nil && strings.HasSuffix(name, "Map") {
 				fd = fieldDescs.ByJSONName(name[:len(name)-3])
-				if !fd.IsMap() {
+				if fd != nil && !fd.IsMap() {
 					return d.newError(tok.Pos(), "unexpected Map name suffix on non-map field %v", fd.FullName())
 				}
 			}
